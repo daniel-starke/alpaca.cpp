@@ -800,7 +800,7 @@ int main(int argc, char ** argv) {
     params.top_p = 0.95f;
 //    params.interactive = true;
 //    params.interactive_start = true;
-    params.use_color = true;
+//    params.use_color = true;
     params.model = "ggml-alpaca-7b-q4.bin";
 
     if (gpt_params_parse(argc, argv, params) == false) {
