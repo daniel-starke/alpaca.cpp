@@ -798,8 +798,8 @@ int main(int argc, char ** argv) {
 
     params.temp = 0.1f;
     params.top_p = 0.95f;
-    params.interactive = true;
-    params.interactive_start = true;
+//    params.interactive = true;
+//    params.interactive_start = true;
     params.use_color = true;
     params.model = "ggml-alpaca-7b-q4.bin";
 
