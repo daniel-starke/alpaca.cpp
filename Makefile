@@ -191,12 +191,12 @@ utils.o: utils.cpp utils.h
 clean:
 	rm -f *.o main quantize
 
-#main: main.cpp ggml.o utils.o
-#	$(CXX) $(CXXFLAGS) main.cpp ggml.o utils.o -o main $(LDFLAGS)
-#	./main -h
+main: main.cpp ggml.o utils.o
+	$(CXX) $(CXXFLAGS) main.cpp ggml.o utils.o -o main $(LDFLAGS)
+	./main -h
 
-main: chat.cpp ggml.o utils.o
-	$(CXX) $(CXXFLAGS) chat.cpp ggml.o utils.o -o chat $(LDFLAGS)
+#main: chat.cpp ggml.o utils.o
+#	$(CXX) $(CXXFLAGS) chat.cpp ggml.o utils.o -o chat $(LDFLAGS)
 
 
 quantize: quantize.cpp ggml.o utils.o
