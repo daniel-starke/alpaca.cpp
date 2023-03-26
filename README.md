@@ -8,6 +8,31 @@ Run a fast ChatGPT-like model locally on your device. The screencast below is no
 
 This combines the [LLaMA foundation model](https://github.com/facebookresearch/llama) with an [open reproduction](https://github.com/tloen/alpaca-lora) of [Stanford Alpaca](https://github.com/tatsu-lab/stanford_alpaca) a fine-tuning of the base model to obey instructions (akin to the [RLHF](https://huggingface.co/blog/rlhf) used to train ChatGPT). 
 
+## Changes compared to forked repository
+
+- renamed main.cpp to chat.cpp
+- removed color output (not supported on Windows 7)
+- changed OpenBLAS to CLBLAST for OpenCL offloading
+- added environment variable GGML_MAX_GPU_SIZE to control upper limit for OpenCL offloading
+- decreased lower limit for OpenCL offloading
+
+## MinGW build with OpenCL support
+
+This targets Windows 7 and Intel Core 2 architecture.
+An example build can be found in the release notes.
+
+Build CLBLAST:
+```
+cmake -G "Ninja" . -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ -DCMAKE_CXX_FLAGS="-D_WIN32_WINNT=0x0601" -DNETLIB=ON -DNETLIB_PERSISTENT_OPENCL=ON
+cmake --build . --config Release
+```
+
+Build OpenCL version of chat:
+```
+cmake -G "Ninja" . -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ -DCMAKE_C_FLAGS="-D_WIN32_WINNT=0x0601 -DGGML_USE_OPENBLAS" -DCMAKE_CXX_FLAGS="-D_WIN32_WINNT=0x0601 -DGGML_USE_OPENBLAS" -DLLAMA_EXTRA_LIBS="-L. -lclblast" -DLLAMA_NO_AVX2=ON -DLLAMA_NO_FMA=ON
+cmake --build . --config Release
+```
+
 ## Get started
 
 ```
