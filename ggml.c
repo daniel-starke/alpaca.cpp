@@ -243,21 +243,6 @@ static inline ggml_fp16_t ggml_compute_fp32_to_fp16(float f) {
 //
 // global data
 //
-static int getMaxGpuSize() {
-	const char * e = getenv("GGML_MAX_GPU_SIZE");
-	if (e == NULL) {
-		return 32768;
-	}
-	char * endPtr;
-	const long r = strtol(e, &endPtr, 10);
-	if (endPtr == NULL || *endPtr != 0) {
-		fprintf(stderr, "Invalid number in GGML_MAX_GPU_SIZE.\n");
-		exit(1);
-	}
-	return (int)r;
-}
-static int maxGpuSize = 32768;
-
 // precomputed gelu table for f16 (128 KB)
 static ggml_fp16_t table_gelu_f16[1 << 16];
 
@@ -2386,7 +2371,6 @@ static inline int ggml_up(int n, int m) {
 struct ggml_context * ggml_init(struct ggml_init_params params) {
     // make this function thread safe
     ggml_critical_section_start();
-	maxGpuSize = getMaxGpuSize();
 
     static bool is_first_call = true;
 
@@ -5555,7 +5539,7 @@ static bool ggml_compute_forward_mul_mat_use_blas(
 
     // TODO: find the optimal values for these
     if (ggml_is_contiguous(src0) &&
-        ggml_is_contiguous(src1) && (ne0 >= 32 && ne1 >= 4 && ne10 >= 32 && (ne0+ne10) <= maxGpuSize)) {
+        ggml_is_contiguous(src1) && (ne0 >= 32 && ne1 >= 4 && ne10 >= 32)) {
         //printf("BLAS: %d %d %d\n", ne0, ne1, ne10);
         return true;
     }

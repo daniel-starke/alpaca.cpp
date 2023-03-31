@@ -13,8 +13,8 @@ This combines the [LLaMA foundation model](https://github.com/facebookresearch/l
 - renamed main.cpp to chat.cpp
 - removed color output (not supported on Windows 7)
 - changed OpenBLAS to CLBLAST for OpenCL offloading
-- added environment variable GGML_MAX_GPU_SIZE to control upper limit for OpenCL offloading
 - decreased lower limit for OpenCL offloading
+- increased llama buffer needed to support OpenBLAS backend properly
 
 ## MinGW build with OpenCL support
 
