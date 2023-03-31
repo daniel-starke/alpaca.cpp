@@ -29,7 +29,7 @@ cmake --build . --config Release
 
 Build OpenCL version of chat:
 ```
-cmake -G "Ninja" . -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ -DCMAKE_C_FLAGS="-D_WIN32_WINNT=0x0601 -DGGML_USE_OPENBLAS" -DCMAKE_CXX_FLAGS="-D_WIN32_WINNT=0x0601 -DGGML_USE_OPENBLAS" -DLLAMA_EXTRA_LIBS="-L. -lclblast" -DLLAMA_NO_AVX2=ON -DLLAMA_NO_FMA=ON
+cmake -G "Ninja" . -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ -DCMAKE_C_FLAGS="-D_WIN32_WINNT=0x0601 -D__USE_MINGW_ANSI_STDIO=1 -DGGML_USE_OPENBLAS -ftree-vectorize -fgraphite -ffast-math" -DCMAKE_CXX_FLAGS="-D_WIN32_WINNT=0x0601 -D__USE_MINGW_ANSI_STDIO=1 -DGGML_USE_OPENBLAS -ftree-vectorize -fgraphite -ffast-math" -DLLAMA_EXTRA_LIBS="-L. -lclblast" -DLLAMA_NO_AVX2=ON -DLLAMA_NO_FMA=ON
 cmake --build . --config Release
 ```
 
