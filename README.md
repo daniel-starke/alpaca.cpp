@@ -46,6 +46,24 @@ Inference of [LLaMA](https://arxiv.org/abs/2302.13971) model in pure C/C++
   </ol>
 </details>
 
+## Modifications
+
+The code has been changed to allow compilation with Microsoft Visual Studio 2010 backend and LLVM/Clang 16 with Boost 1.53.
+The following two scripts have been added:
+- `build-mingw.sh`  
+  Generates multiple executables for different architectures using MinGW.
+- `build-msvc.sh`  
+  Generates multiple executables for different architectures using LLVM/Clang and
+  Microsoft Visual Studio 2010 (adjust path as needed). Set environment variable
+  CUBLAS=1 to enable NVIDIA cuBLAS support. This CUDA variant uses compute capabilities 6.1.
+
+Target architectures and their used ISA:
+- **ivybridge**: F16C, SSE3, AVX
+- **haswell**: F16C, SSE3, AVX, AVX2, FMA
+- **knl**: F16C, SSE3, AVX, AVX2, FMA, AVX512
+- **cannonlake**: F16C, SSE3, AVX, AVX2, FMA, AVX512, AVX512VBMI
+- **icelake-client**, **znver4**: F16C, SSE3, AVX, AVX2, FMA, AVX512, AVX512VBMI, AVX512VNNI
+
 ## Description
 
 The main goal of `llama.cpp` is to run the LLaMA model using 4-bit integer quantization on a MacBook

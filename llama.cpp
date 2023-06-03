@@ -18,11 +18,12 @@
 
 #include <array>
 #include <ctime>
-#include <cinttypes>
+extern "C" {
+#define __STDC_FORMAT_MACROS
+#include <inttypes.h>
+} /* extern "C" */
 #include <fstream>
-#include <random>
 #include <map>
-#include <unordered_map>
 #include <queue>
 #include <cassert>
 #include <cstring>
@@ -30,11 +31,36 @@
 #include <memory>
 #include <algorithm>
 #include <initializer_list>
-#include <thread>
-#include <atomic>
-#include <mutex>
+#include <boost/thread.hpp>
+#include <boost/atomic.hpp>
+#include <boost/thread/mutex.hpp>
+#include <boost/assign/list_of.hpp>
+#include <boost/unordered_map.hpp>
+#include <boost/random/discrete_distribution.hpp>
+#include <boost/random/mersenne_twister.hpp>
 #include <sstream>
 #include <numeric>
+
+
+#ifdef _MSC_VER
+#if _MSC_VER < 1800
+#define INFINITY (DBL_MAX + DBL_MAX)
+#define NAN (INFINITY - INFINITY)
+static inline float roundf_(const float x) {
+	return (x >= 0.0f) ? floorf(x + 0.5f) : ceilf(x - 0.5f);
+}
+#define roundf roundf_
+static inline double log2_(const double x) {
+	return log(x) / 1.44269504088896340736;
+}
+#define log2 log2_
+static inline float log2f_(const float x) {
+	return logf(x) / 1.44269504088896340736f;
+}
+#define log2f log2f_
+#endif /* _MSV_VER < 1800 */
+#endif /* _MSC_VER */
+
 
 #define LLAMA_USE_SCRATCH
 #define LLAMA_MAX_SCRATCH_BUFFERS 16
@@ -58,38 +84,38 @@ static const size_t MB = 1024*1024;
 
 static const std::map<e_model, size_t> & MEM_REQ_SCRATCH0()
 {
-    static std::map<e_model, size_t> k_sizes = {
-        { MODEL_3B,    128ull * MB },
-        { MODEL_7B,    512ull * MB },
-        { MODEL_13B,   512ull * MB },
-        { MODEL_30B,   512ull * MB },
-        { MODEL_65B,  1024ull * MB },
-    };
+    static std::map<e_model, size_t> k_sizes = boost::assign::map_list_of<e_model, size_t>
+        ( MODEL_3B,    128ull * MB )
+        ( MODEL_7B,    512ull * MB )
+        ( MODEL_13B,   512ull * MB )
+        ( MODEL_30B,   512ull * MB )
+        ( MODEL_65B,  1024ull * MB )
+    ;
     return k_sizes;
 }
 
 static const std::map<e_model, size_t> & MEM_REQ_SCRATCH1()
 {
-    static std::map<e_model, size_t> k_sizes = {
-        { MODEL_3B,    128ull * MB },
-        { MODEL_7B,    512ull * MB },
-        { MODEL_13B,   512ull * MB },
-        { MODEL_30B,   512ull * MB },
-        { MODEL_65B,  1024ull * MB },
-    };
+    static std::map<e_model, size_t> k_sizes = boost::assign::map_list_of<e_model, size_t>
+        ( MODEL_3B,    128ull * MB )
+        ( MODEL_7B,    512ull * MB )
+        ( MODEL_13B,   512ull * MB )
+        ( MODEL_30B,   512ull * MB )
+        ( MODEL_65B,  1024ull * MB )
+    ;
     return k_sizes;
 }
 
 // 2*n_embd*n_ctx*n_layer*sizeof(float16)
 static const std::map<e_model, size_t> & MEM_REQ_KV_SELF()
 {
-    static std::map<e_model, size_t> k_sizes = {
-        { MODEL_3B,    682ull * MB },
-        { MODEL_7B,   1026ull * MB },
-        { MODEL_13B,  1608ull * MB },
-        { MODEL_30B,  3124ull * MB },
-        { MODEL_65B,  5120ull * MB },
-    };
+    static std::map<e_model, size_t> k_sizes = boost::assign::map_list_of<e_model, size_t>
+        ( MODEL_3B,    682ull * MB )
+        ( MODEL_7B,   1026ull * MB )
+        ( MODEL_13B,  1608ull * MB )
+        ( MODEL_30B,  3124ull * MB )
+        ( MODEL_65B,  5120ull * MB )
+    ;
     return k_sizes;
 }
 
@@ -97,13 +123,13 @@ static const std::map<e_model, size_t> & MEM_REQ_KV_SELF()
 // not actually needed if BLAS is disabled
 static const std::map<e_model, size_t> & MEM_REQ_EVAL()
 {
-    static std::map<e_model, size_t> k_sizes = {
-        { MODEL_3B,   512ull * MB },
-        { MODEL_7B,   768ull * MB },
-        { MODEL_13B, 1024ull * MB },
-        { MODEL_30B, 1280ull * MB },
-        { MODEL_65B, 1536ull * MB },
-    };
+    static std::map<e_model, size_t> k_sizes = boost::assign::map_list_of<e_model, size_t>
+        ( MODEL_3B,   512ull * MB )
+        ( MODEL_7B,   768ull * MB )
+        ( MODEL_13B, 1024ull * MB )
+        ( MODEL_30B, 1280ull * MB )
+        ( MODEL_65B, 1536ull * MB )
+    ;
     return k_sizes;
 }
 
@@ -207,12 +233,12 @@ struct llama_vocab {
         float score;
     };
 
-    std::unordered_map<token, id> token_to_id;
+    boost::unordered_map<token, id> token_to_id;
     std::vector<token_score> id_to_token;
 };
 
 struct llama_context {
-    std::mt19937 rng;
+    boost::mt19937 rng;
 
     int64_t t_load_us = 0;
     int64_t t_start_us = 0;
@@ -290,7 +316,7 @@ static T checked_mul(T a, T b) {
 
 static size_t checked_div(size_t a, size_t b) {
     if (b == 0 || a % b != 0) {
-        throw format("error dividing %zu / %zu", a, b);
+        throw format("error dividing %" PRIu64 " / %" PRIu64 "", a, b);
     }
     return a / b;
 }
@@ -407,7 +433,7 @@ struct llama_load_tensor {
 struct llama_load_tensors_map {
     // tensors is kept in a separate vector to preserve file order
     std::vector<llama_load_tensor> tensors;
-    std::unordered_map<std::string, size_t> name_to_idx;
+    boost::unordered_map<std::string, size_t> name_to_idx;
 };
 
 enum llama_file_version {
@@ -609,7 +635,7 @@ struct llama_model_loader {
         file_loaders.emplace_back(first_file);
         uint32_t n_parts = vocab_only ? 1 : guess_n_parts();
         for (uint32_t i = 1; i < n_parts; i++) {
-            std::string fname = fname_base + "." + std::to_string(i);
+            std::string fname = fname_base + "." + std::to_string(static_cast<unsigned long long>(i));
             auto * ith_file = new llama_file_loader(fname.c_str(), i, tensors_map);
             file_loaders.emplace_back(ith_file);
             if (ith_file->hparams != first_file->hparams) {
@@ -786,7 +812,7 @@ struct llama_model_loader {
             uint8_t byte = lt.data[i];
             sum = byte + (sum << 6) + (sum << 16) - sum; // sdbm hash
         }
-        fprintf(stderr, "%s checksum: %#08x (%s, size %zu)\n", lt.name.c_str(), sum,
+        fprintf(stderr, "%s checksum: %#08x (%s, size %" PRIu64 ")\n", lt.name.c_str(), sum,
                 llama_format_tensor_shape(lt.ne).c_str(), lt.size);
     }
 
@@ -911,6 +937,7 @@ static const char *llama_model_type_name(e_model type) {
         case MODEL_65B: return "65B";
         default: LLAMA_ASSERT(false);
     }
+	return NULL;
 }
 
 static void llama_model_load_internal(
@@ -959,7 +986,7 @@ static void llama_model_load_internal(
         fprintf(stderr, "%s: n_rot      = %u\n",  __func__, hparams.n_rot);
         fprintf(stderr, "%s: ftype      = %u (%s)\n", __func__, hparams.ftype, llama_ftype_name(hparams.ftype));
         fprintf(stderr, "%s: n_ff       = %u\n",  __func__, n_ff);
-        fprintf(stderr, "%s: n_parts    = %zu\n", __func__, ml->file_loaders.size());
+        fprintf(stderr, "%s: n_parts    = %" PRIu64 "\n", __func__, ml->file_loaders.size());
         fprintf(stderr, "%s: model size = %s\n",  __func__, llama_model_type_name(model.type));
     }
 
@@ -1025,8 +1052,8 @@ static void llama_model_load_internal(
 
         ml->ggml_ctx = ctx;
 
-        model.tok_embeddings = ml->get_tensor("tok_embeddings.weight", {n_embd, n_vocab}, GGML_BACKEND_CPU);
-        model.norm           = ml->get_tensor("norm.weight",           {n_embd},          GGML_BACKEND_CPU);
+        model.tok_embeddings = ml->get_tensor("tok_embeddings.weight", boost::assign::list_of(n_embd)(n_vocab), GGML_BACKEND_CPU);
+        model.norm           = ml->get_tensor("norm.weight",           boost::assign::list_of(n_embd),          GGML_BACKEND_CPU);
 
         // "output" tensor
         {
@@ -1037,7 +1064,7 @@ static void llama_model_load_internal(
                 backend_output = GGML_BACKEND_CPU;
             }
 
-            model.output = ml->get_tensor("output.weight", {n_embd, n_vocab}, backend_output);
+            model.output = ml->get_tensor("output.weight", boost::assign::list_of(n_embd)(n_vocab), backend_output);
         }
 
         const int i_gpu_start = n_layer - n_gpu_layers;
@@ -1048,20 +1075,20 @@ static void llama_model_load_internal(
 
             auto & layer = model.layers[i];
 
-            std::string layers_i = "layers." + std::to_string(i);
+            std::string layers_i = "layers." + std::to_string(static_cast<unsigned long long>(i));
 
-            layer.attention_norm = ml->get_tensor(layers_i + ".attention_norm.weight", {n_embd}, backend);
+            layer.attention_norm = ml->get_tensor(layers_i + ".attention_norm.weight", boost::assign::list_of(n_embd), backend);
 
-            layer.wq = ml->get_tensor(layers_i + ".attention.wq.weight", {n_embd, n_embd}, backend);
-            layer.wk = ml->get_tensor(layers_i + ".attention.wk.weight", {n_embd, n_embd}, backend);
-            layer.wv = ml->get_tensor(layers_i + ".attention.wv.weight", {n_embd, n_embd}, backend);
-            layer.wo = ml->get_tensor(layers_i + ".attention.wo.weight", {n_embd, n_embd}, backend);
+            layer.wq = ml->get_tensor(layers_i + ".attention.wq.weight", boost::assign::list_of(n_embd)(n_embd), backend);
+            layer.wk = ml->get_tensor(layers_i + ".attention.wk.weight", boost::assign::list_of(n_embd)(n_embd), backend);
+            layer.wv = ml->get_tensor(layers_i + ".attention.wv.weight", boost::assign::list_of(n_embd)(n_embd), backend);
+            layer.wo = ml->get_tensor(layers_i + ".attention.wo.weight", boost::assign::list_of(n_embd)(n_embd), backend);
 
-            layer.ffn_norm = ml->get_tensor(layers_i + ".ffn_norm.weight", {n_embd}, backend);
+            layer.ffn_norm = ml->get_tensor(layers_i + ".ffn_norm.weight", boost::assign::list_of(n_embd), backend);
 
-            layer.w1 = ml->get_tensor(layers_i + ".feed_forward.w1.weight", {n_embd,   n_ff},   backend);
-            layer.w2 = ml->get_tensor(layers_i + ".feed_forward.w2.weight", {  n_ff,   n_embd}, backend);
-            layer.w3 = ml->get_tensor(layers_i + ".feed_forward.w3.weight", {n_embd,   n_ff},   backend);
+            layer.w1 = ml->get_tensor(layers_i + ".feed_forward.w1.weight", boost::assign::list_of(n_embd)(n_ff),   backend);
+            layer.w2 = ml->get_tensor(layers_i + ".feed_forward.w2.weight", boost::assign::list_of(  n_ff)(n_embd), backend);
+            layer.w3 = ml->get_tensor(layers_i + ".feed_forward.w3.weight", boost::assign::list_of(n_embd)(n_ff),   backend);
 
             if (backend == GGML_BACKEND_CUDA) {
                 vram_total +=
@@ -1100,7 +1127,7 @@ static void llama_model_load_internal(
         if (n_gpu_layers > (int) hparams.n_layer) {
             fprintf(stderr, "%s: [cublas] offloading output layer to GPU\n", __func__);
         }
-        fprintf(stderr, "%s: [cublas] total VRAM used: %zu MB\n", __func__, vram_total / 1024 / 1024);
+        fprintf(stderr, "%s: [cublas] total VRAM used: %" PRIu64 " MB\n", __func__, vram_total / 1024 / 1024);
 #elif !defined(GGML_USE_CLBLAST)
         (void) n_gpu_layers;
 #endif
@@ -1108,7 +1135,7 @@ static void llama_model_load_internal(
 
     // populate `tensors_by_name`
     for (llama_load_tensor & lt : ml->tensors_map.tensors) {
-        model.tensors_by_name.emplace_back(lt.name, lt.ggml_tensor);
+        model.tensors_by_name.push_back(std::pair<std::string, struct ggml_tensor *>(lt.name, lt.ggml_tensor));
     }
 
     ml->load_all_data(progress_callback, progress_callback_user_data, use_mlock ? &lctx.model.mlock_mmap : NULL);
@@ -1158,7 +1185,7 @@ static void llama_model_load_internal(
             ggml_cl_transform_tensor(model.output); vram_total += ggml_nbytes(model.output);
         }
 
-        fprintf(stderr, "ggml_opencl: total VRAM used: %zu MB\n", vram_total / 1024 / 1024);
+        fprintf(stderr, "ggml_opencl: total VRAM used: %" PRIu64 " MB\n", vram_total / 1024 / 1024);
     }
 #endif
 
@@ -1512,7 +1539,7 @@ struct llama_sp_symbol {
     size_t n;
 };
 
-static_assert(std::is_trivially_copyable<llama_sp_symbol>::value, "llama_sp_symbol is not trivially copyable");
+//static_assert(std::is_trivially_copyable<llama_sp_symbol>::value, "llama_sp_symbol is not trivially copyable");
 
 struct llama_sp_bigram {
     struct comparator {
@@ -1572,7 +1599,7 @@ struct llama_tokenizer {
             left_sym.n += right_sym.n;
             right_sym.n = 0;
 
-            //printf("left = '%*s' size = %zu\n", (int) left_sym.n, left_sym.text, bigram.size);
+            //printf("left = '%*s' size = %" PRIu64 "\n", (int) left_sym.n, left_sym.text, bigram.size);
 
             // remove the right sym from the chain
             left_sym.next = right_sym.next;
@@ -1902,7 +1929,7 @@ void llama_sample_frequency_and_presence_penalties(struct llama_context * ctx, l
     const int64_t t_start_sample_us = ggml_time_us();
 
     // Create a frequency map to count occurrences of each token in last_tokens
-    std::unordered_map<llama_token, int> token_count;
+    boost::unordered_map<llama_token, int> token_count;
     for (size_t i = 0; i < last_tokens_size; ++i) {
         token_count[last_tokens_p[i]]++;
     }
@@ -2040,7 +2067,7 @@ llama_token llama_sample_token(struct llama_context * ctx, llama_token_data_arra
         probs.push_back(candidates->data[i].p);
     }
 
-    std::discrete_distribution<> dist(probs.begin(), probs.end());
+    boost::random::discrete_distribution<> dist(probs.begin(), probs.end());
     auto & rng = ctx->rng;
     int idx = dist(rng);
 
@@ -2067,7 +2094,7 @@ static void llama_model_quantize_internal(const std::string & fname_inp, const s
     };
 
     if (nthread <= 0) {
-        nthread = std::thread::hardware_concurrency();
+        nthread = boost::thread::hardware_concurrency();
     }
 
     std::unique_ptr<llama_model_loader> model_loader(new llama_model_loader(fname_inp, /*use_mmap*/ false,
@@ -2078,8 +2105,8 @@ static void llama_model_quantize_internal(const std::string & fname_inp, const s
     size_t total_size_new = 0;
     std::vector<int64_t> hist_all(1 << 4, 0);
 
-    std::vector<std::thread> workers;
-    std::mutex mutex;
+    std::vector<boost::thread> workers;
+    boost::mutex mutex;
 
     size_t idx = 0;
     for (llama_load_tensor & tensor : model_loader->tensors_map.tensors) {
@@ -2151,7 +2178,7 @@ static void llama_model_quantize_internal(const std::string & fname_inp, const s
                     std::vector<int64_t> local_hist;
                     size_t local_size = 0;
                     while (true) {
-                        std::unique_lock<std::mutex> lock(mutex);
+                        boost::unique_lock<boost::mutex> lock(mutex);
                         size_t first = counter; counter += chunk_size;
                         if (first >= nelements) {
                             if (!local_hist.empty()) {
@@ -2174,7 +2201,7 @@ static void llama_model_quantize_internal(const std::string & fname_inp, const s
                     workers.resize(nthread_use - 1);
                 }
                 for (int it = 0; it < nthread_use - 1; ++it) {
-                    workers[it] = std::thread(compute);
+                    workers[it] = boost::thread(compute);
                 }
                 compute();
                 for (int it = 0; it < nthread_use - 1; ++it) {
@@ -2246,7 +2273,7 @@ struct llama_context * llama_init_from_file(
         };
     }
 
-    ctx->rng = std::mt19937(params.seed);
+    ctx->rng = boost::random::mt19937(params.seed);
     ctx->logits_all = params.logits_all;
 
     ggml_type memory_type = params.f16_kv ? GGML_TYPE_F16 : GGML_TYPE_F32;
@@ -2360,10 +2387,10 @@ int llama_apply_lora_from_file_internal(struct llama_context * ctx, const char *
     params.no_alloc   = false;
 
     ggml_context * lora_ctx = ggml_init(params);
-    std::unordered_map<std::string, struct ggml_tensor *> lora_tensors;
+    boost::unordered_map<std::string, struct ggml_tensor *> lora_tensors;
 
     // create a name -> tensor map of the model to accelerate lookups
-    std::unordered_map<std::string, struct ggml_tensor*> model_tensors;
+    boost::unordered_map<std::string, struct ggml_tensor*> model_tensors;
     for (auto & kv: model.tensors_by_name) {
         model_tensors.insert(kv);
     }
@@ -2486,7 +2513,7 @@ int llama_apply_lora_from_file_internal(struct llama_context * ctx, const char *
                 }
                 size_t idx = model_loader->tensors_map.name_to_idx[base_name];
                 llama_load_tensor & lt = model_loader->tensors_map.tensors[idx];
-                base_t = model_loader->get_tensor(base_name, { (uint32_t)dest_t->ne[0], (uint32_t)dest_t->ne[1] }, GGML_BACKEND_CPU);
+                base_t = model_loader->get_tensor(base_name, boost::assign::list_of((uint32_t)dest_t->ne[0])((uint32_t)dest_t->ne[1]), GGML_BACKEND_CPU);
                 lt.data = (uint8_t *) lt.ggml_tensor->data;
                 model_loader->load_data_for(lt);
                 lt.ggml_tensor->data = lt.data;
@@ -2848,7 +2875,7 @@ bool llama_load_session_file(struct llama_context * ctx, const char * path_sessi
         const uint32_t n_token_count = file.read_u32();
 
         if (n_token_count > n_token_capacity) {
-            fprintf(stderr, "%s : token count in session file exceeded capacity! %u > %zu\n", __func__, n_token_count, n_token_capacity);
+            fprintf(stderr, "%s : token count in session file exceeded capacity! %u > %" PRIu64 "\n", __func__, n_token_count, n_token_capacity);
             return false;
         }
 
@@ -2862,7 +2889,7 @@ bool llama_load_session_file(struct llama_context * ctx, const char * path_sessi
         const size_t n_state_size_max = llama_get_state_size(ctx);
 
         if (n_state_size_cur > n_state_size_max) {
-            fprintf(stderr, "%s : the state size in session file is too big! max %zu, got %zu\n", __func__, n_state_size_max, n_state_size_cur);
+            fprintf(stderr, "%s : the state size in session file is too big! max %" PRIu64 ", got %" PRIu64 "\n", __func__, n_state_size_max, n_state_size_cur);
             return false;
         }
 
@@ -3008,20 +3035,20 @@ const char * llama_print_system_info(void) {
     static std::string s;
 
     s  = "";
-    s += "AVX = "         + std::to_string(ggml_cpu_has_avx())         + " | ";
-    s += "AVX2 = "        + std::to_string(ggml_cpu_has_avx2())        + " | ";
-    s += "AVX512 = "      + std::to_string(ggml_cpu_has_avx512())      + " | ";
-    s += "AVX512_VBMI = " + std::to_string(ggml_cpu_has_avx512_vbmi()) + " | ";
-    s += "AVX512_VNNI = " + std::to_string(ggml_cpu_has_avx512_vnni()) + " | ";
-    s += "FMA = "         + std::to_string(ggml_cpu_has_fma())         + " | ";
-    s += "NEON = "        + std::to_string(ggml_cpu_has_neon())        + " | ";
-    s += "ARM_FMA = "     + std::to_string(ggml_cpu_has_arm_fma())     + " | ";
-    s += "F16C = "        + std::to_string(ggml_cpu_has_f16c())        + " | ";
-    s += "FP16_VA = "     + std::to_string(ggml_cpu_has_fp16_va())     + " | ";
-    s += "WASM_SIMD = "   + std::to_string(ggml_cpu_has_wasm_simd())   + " | ";
-    s += "BLAS = "        + std::to_string(ggml_cpu_has_blas())        + " | ";
-    s += "SSE3 = "        + std::to_string(ggml_cpu_has_sse3())        + " | ";
-    s += "VSX = "         + std::to_string(ggml_cpu_has_vsx())         + " | ";
+    s += "AVX = "         + std::to_string(static_cast<unsigned long long>(ggml_cpu_has_avx()))         + " | ";
+    s += "AVX2 = "        + std::to_string(static_cast<unsigned long long>(ggml_cpu_has_avx2()))        + " | ";
+    s += "AVX512 = "      + std::to_string(static_cast<unsigned long long>(ggml_cpu_has_avx512()))      + " | ";
+    s += "AVX512_VBMI = " + std::to_string(static_cast<unsigned long long>(ggml_cpu_has_avx512_vbmi())) + " | ";
+    s += "AVX512_VNNI = " + std::to_string(static_cast<unsigned long long>(ggml_cpu_has_avx512_vnni())) + " | ";
+    s += "FMA = "         + std::to_string(static_cast<unsigned long long>(ggml_cpu_has_fma()))         + " | ";
+    s += "NEON = "        + std::to_string(static_cast<unsigned long long>(ggml_cpu_has_neon()))        + " | ";
+    s += "ARM_FMA = "     + std::to_string(static_cast<unsigned long long>(ggml_cpu_has_arm_fma()))     + " | ";
+    s += "F16C = "        + std::to_string(static_cast<unsigned long long>(ggml_cpu_has_f16c()))        + " | ";
+    s += "FP16_VA = "     + std::to_string(static_cast<unsigned long long>(ggml_cpu_has_fp16_va()))     + " | ";
+    s += "WASM_SIMD = "   + std::to_string(static_cast<unsigned long long>(ggml_cpu_has_wasm_simd()))   + " | ";
+    s += "BLAS = "        + std::to_string(static_cast<unsigned long long>(ggml_cpu_has_blas()))        + " | ";
+    s += "SSE3 = "        + std::to_string(static_cast<unsigned long long>(ggml_cpu_has_sse3()))        + " | ";
+    s += "VSX = "         + std::to_string(static_cast<unsigned long long>(ggml_cpu_has_vsx()))         + " | ";
 
     return s.c_str();
 }

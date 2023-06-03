@@ -2,11 +2,11 @@
 #include <cstdint>
 #include <stdint.h>
 #include <stdio.h>
-#include <atomic>
 
 #include <cuda_runtime.h>
 #include <cublas_v2.h>
 #include <cuda_fp16.h>
+#include <sm_30_intrinsics.h>
 
 #include "ggml-cuda.h"
 #include "ggml.h"
@@ -109,7 +109,7 @@ static __global__ void mul_f32(const float * x, const float * y, float * dst, co
 static __device__ void dequantize_q4_0(const void * vx, const int ib, const int iqs, float & v0, float & v1){
     const block_q4_0 * x = (const block_q4_0 *) vx;
 
-    const float d = x[ib].d;
+    const float d = __half2float(x[ib].d);
 
     const uint8_t vui = x[ib].qs[iqs];
 
@@ -123,8 +123,8 @@ static __device__ void dequantize_q4_0(const void * vx, const int ib, const int 
 static __device__ void dequantize_q4_1(const void * vx, const int ib, const int iqs, float & v0, float & v1){
     const block_q4_1 * x = (const block_q4_1 *) vx;
 
-    const float d = x[ib].d;
-    const float m = x[ib].m;
+    const float d = __half2float(x[ib].d);
+    const float m = __half2float(x[ib].m);
 
     const uint8_t vui = x[ib].qs[iqs];
 
@@ -138,7 +138,7 @@ static __device__ void dequantize_q4_1(const void * vx, const int ib, const int 
 static __device__ void dequantize_q5_0(const void * vx, const int ib, const int iqs, float & v0, float & v1){
     const block_q5_0 * x = (const block_q5_0 *) vx;
 
-    const float d = x[ib].d;
+    const float d = __half2float(x[ib].d);
 
     uint32_t qh;
     memcpy(&qh, x[ib].qh, sizeof(qh));
@@ -156,8 +156,8 @@ static __device__ void dequantize_q5_0(const void * vx, const int ib, const int 
 static __device__ void dequantize_q5_1(const void * vx, const int ib, const int iqs, float & v0, float & v1){
     const block_q5_1 * x = (const block_q5_1 *) vx;
 
-    const float d = x[ib].d;
-    const float m = x[ib].m;
+    const float d = __half2float(x[ib].d);
+    const float m = __half2float(x[ib].m);
 
     uint32_t qh;
     memcpy(&qh, x[ib].qh, sizeof(qh));
@@ -175,7 +175,7 @@ static __device__ void dequantize_q5_1(const void * vx, const int ib, const int 
 static __device__ void dequantize_q8_0(const void * vx, const int ib, const int iqs, float & v0, float & v1){
     const block_q8_0 * x = (const block_q8_0 *) vx;
 
-    const float d = x[ib].d;
+    const float d = __half2float(x[ib].d);
 
     const int8_t vi0 = x[ib].qs[iqs + 0];
     const int8_t vi1 = x[ib].qs[iqs + 1];
@@ -250,7 +250,7 @@ static __global__ void dequantize_mul_mat_vec(const void * vx, const float * y, 
     __syncthreads();
 #pragma unroll
     for (int mask = 16; mask > 0; mask >>= 1) {
-        tmp += __shfl_xor_sync(0xffffffff, tmp, mask, 32);
+        tmp += __shfl_xor(tmp, mask, 32);
     }
 
     if (tid == 0) {
@@ -382,27 +382,38 @@ static dequantize_mul_mat_vec_cuda_t ggml_get_dequantize_mul_mat_vec_cuda(ggml_t
 // buffer pool for cuda
 #define MAX_CUDA_BUFFERS 256
 
+static int vlExch(volatile int &var, const int val) {
+	const int res = var;
+	var = val;
+	return res;
+}
+
 struct scoped_spin_lock {
-    std::atomic_flag& lock;
-    scoped_spin_lock(std::atomic_flag& lock) : lock(lock) {
-        while (lock.test_and_set(std::memory_order_acquire)) {
+    volatile int& lock;
+    scoped_spin_lock(int& lock) : lock(lock) {
+        while ( vlExch(lock, 1) ) {
             ; // spin
         }
     }
     ~scoped_spin_lock() {
-        lock.clear(std::memory_order_release);
+		vlExch(lock, 0);
     }
-    scoped_spin_lock(const scoped_spin_lock&) = delete;
-    scoped_spin_lock& operator=(const scoped_spin_lock&) = delete;
+private:
+    scoped_spin_lock(const scoped_spin_lock&);
+    scoped_spin_lock& operator=(const scoped_spin_lock&);
 };
 
 struct cuda_buffer {
-    void * ptr = nullptr;
-    size_t size = 0;
+    void * ptr;
+    size_t size;
+	cuda_buffer():
+		ptr(nullptr),
+		size(0)
+	{}
 };
 
 static cuda_buffer g_cuda_buffer_pool[MAX_CUDA_BUFFERS];
-static std::atomic_flag g_cuda_pool_lock = ATOMIC_FLAG_INIT;
+static int g_cuda_pool_lock = 0;
 
 static void * ggml_cuda_pool_malloc(size_t size, size_t * actual_size) {
     scoped_spin_lock lock(g_cuda_pool_lock);
@@ -459,7 +470,6 @@ void ggml_init_cublas() {
 
         // create cublas handle
         CUBLAS_CHECK(cublasCreate(&g_cublasH));
-        CUBLAS_CHECK(cublasSetMathMode(g_cublasH, CUBLAS_TF32_TENSOR_OP_MATH));
 
         // configure logging to stdout
         // CUBLAS_CHECK(cublasLoggerConfigure(1, 1, 0, nullptr));
@@ -711,8 +721,8 @@ static void ggml_cuda_mul_mat_f16(const ggml_tensor * src0, const ggml_tensor * 
                         &alpha, c_X, CUDA_R_16F, ne00,
                                 c_Y, CUDA_R_16F, ne10,
                         &beta,  c_D, CUDA_R_32F, ne01,
-                        CUBLAS_COMPUTE_32F_FAST_16F,
-                        CUBLAS_GEMM_DEFAULT));
+                        CUDA_R_32F,
+                        CUBLAS_GEMM_DFALT));
 
             // copy dst to host
             float * d = (float *) ((char *) dst->data + i02*nb2 + i03*nb3);

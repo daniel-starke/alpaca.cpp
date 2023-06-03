@@ -8,7 +8,7 @@
 #include <iterator>
 #include <algorithm>
 #include <sstream>
-#include <unordered_set>
+#include <boost/unordered_set.hpp>
 
 #if defined(__APPLE__) && defined(__MACH__)
 #include <sys/types.h>
@@ -16,11 +16,18 @@
 #endif
 
 #if defined(_WIN32)
-#define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
 #include <windows.h>
 #include <fcntl.h>
 #include <io.h>
+#ifdef _MSC_VER
+#if _MSC_VER < 1800
+#define INFINITY (DBL_MAX + DBL_MAX)
+#define NAN (INFINITY - INFINITY)
+#endif /* _MSV_VER < 1800 */
+#endif /* _MSC_VER */
+#ifndef ENABLE_VIRTUAL_TERMINAL_PROCESSING
+#define ENABLE_VIRTUAL_TERMINAL_PROCESSING 0x0004
+#endif /* ENABLE_VIRTUAL_TERMINAL_PROCESSING */
 #else
 #include <sys/ioctl.h>
 #include <unistd.h>
@@ -30,7 +37,7 @@
 int32_t get_num_physical_cores() {
 #ifdef __linux__
     // enumerate the set of thread siblings, num entries is num cores
-    std::unordered_set<std::string> siblings;
+    boost::unordered_set<std::string> siblings;
     for (uint32_t cpu=0; cpu < UINT32_MAX; ++cpu) {
         std::ifstream thread_siblings("/sys/devices/system/cpu"
             + std::to_string(cpu) + "/topology/thread_siblings");
@@ -59,7 +66,7 @@ int32_t get_num_physical_cores() {
 #elif defined(_WIN32)
     //TODO: Implement
 #endif
-    unsigned int n_threads = std::thread::hardware_concurrency();
+    unsigned int n_threads = boost::thread::hardware_concurrency();
     return n_threads > 0 ? (n_threads <= 4 ? n_threads : n_threads / 2) : 4;
 }
 
@@ -446,7 +453,7 @@ void gpt_print_usage(int /*argc*/, char ** argv, const gpt_params & params) {
     fprintf(stderr, "\n");
 }
 
-std::string gpt_random_prompt(std::mt19937 & rng) {
+std::string gpt_random_prompt(boost::random::mt19937 & rng) {
     const int r = rng() % 10;
     switch (r) {
         case 0: return "So";

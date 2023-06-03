@@ -29,10 +29,6 @@
 #endif
 
 #if defined(_WIN32)
-    #define WIN32_LEAN_AND_MEAN
-    #ifndef NOMINMAX
-        #define NOMINMAX
-    #endif
     #include <windows.h>
     #include <io.h>
     #include <stdio.h> // for _fseeki64
@@ -399,10 +395,30 @@ struct llama_mlock {
 
 // Replacement for std::vector<uint8_t> that doesn't require zero-initialization.
 struct llama_buffer {
-    uint8_t * addr = NULL;
-    size_t size = 0;
+    uint8_t * addr;
+    size_t size;
 
-    llama_buffer() = default;
+    llama_buffer():
+		addr(NULL),
+		size(0)
+	{}
+
+    llama_buffer(llama_buffer&& o):
+		addr(o.addr),
+		size(o.size)
+	{
+		o.addr = NULL;
+		o.size = 0;
+	}
+
+    llama_buffer& operator=(llama_buffer&& o) {
+		delete[] addr;
+		addr = o.addr;
+		size = o.size;
+		o.addr = NULL;
+		o.size = 0;
+		return *this;
+	}
 
     void resize(size_t len) {
         delete[] addr;
@@ -414,11 +430,9 @@ struct llama_buffer {
         delete[] addr;
     }
 
-    // disable copy and move
+    // disable copy
     llama_buffer(const llama_buffer&) = delete;
-    llama_buffer(llama_buffer&&) = delete;
     llama_buffer& operator=(const llama_buffer&) = delete;
-    llama_buffer& operator=(llama_buffer&&) = delete;
 };
 
 #ifdef GGML_USE_CUBLAS

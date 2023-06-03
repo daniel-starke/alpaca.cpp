@@ -8,7 +8,10 @@
 #include "build-info.h"
 
 #include <cassert>
-#include <cinttypes>
+extern "C" {
+#define __STDC_FORMAT_MACROS
+#include <inttypes.h>
+} /* extern "C" */
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -17,13 +20,12 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <boost/assign/list_of.hpp>
 
 #if defined (__unix__) || (defined (__APPLE__) && defined (__MACH__))
 #include <signal.h>
 #include <unistd.h>
 #elif defined (_WIN32)
-#define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
 #include <windows.h>
 #include <signal.h>
 #endif
@@ -91,7 +93,7 @@ int main(int argc, char ** argv) {
 
     fprintf(stderr, "%s: seed  = %d\n", __func__, params.seed);
 
-    std::mt19937 rng(params.seed);
+    boost::random::mt19937 rng(params.seed);
     if (params.random_prompt) {
         params.prompt = gpt_random_prompt(rng);
     }
@@ -112,7 +114,7 @@ int main(int argc, char ** argv) {
     {
         fprintf(stderr, "\n");
         fprintf(stderr, "system_info: n_threads = %d / %d | %s\n",
-                params.n_threads, std::thread::hardware_concurrency(), llama_print_system_info());
+                params.n_threads, boost::thread::hardware_concurrency(), llama_print_system_info());
     }
 
     // determine the maximum memory usage needed to do inference for the given n_batch and n_predict parameters
@@ -124,7 +126,7 @@ int main(int argc, char ** argv) {
         }
 
         {
-            const std::vector<llama_token> tmp = { 0, };
+            const std::vector<llama_token> tmp = boost::assign::list_of(0);
             llama_eval(ctx, tmp.data(), tmp.size(), params.n_predict - 1, params.n_threads);
         }
 
@@ -194,10 +196,10 @@ int main(int argc, char ** argv) {
         } else if (n_matching_session_tokens >= embd_inp.size()) {
             fprintf(stderr, "%s: session file has exact match for prompt!\n", __func__);
         } else if (n_matching_session_tokens < (embd_inp.size() / 2)) {
-            fprintf(stderr, "%s: warning: session file has low similarity to prompt (%zu / %zu tokens); will mostly be reevaluated\n",
+            fprintf(stderr, "%s: warning: session file has low similarity to prompt (%" PRIu64 " / %" PRIu64 " tokens); will mostly be reevaluated\n",
                 __func__, n_matching_session_tokens, embd_inp.size());
         } else {
-            fprintf(stderr, "%s: session file matches %zu / %zu tokens of prompt\n",
+            fprintf(stderr, "%s: session file matches %" PRIu64 " / %" PRIu64 " tokens of prompt\n",
                 __func__, n_matching_session_tokens, embd_inp.size());
         }
     }
@@ -228,7 +230,7 @@ int main(int argc, char ** argv) {
     if (params.verbose_prompt) {
         fprintf(stderr, "\n");
         fprintf(stderr, "%s: prompt: '%s'\n", __func__, params.prompt.c_str());
-        fprintf(stderr, "%s: number of tokens in prompt = %zu\n", __func__, embd_inp.size());
+        fprintf(stderr, "%s: number of tokens in prompt = %" PRIu64 "\n", __func__, embd_inp.size());
         for (int i = 0; i < (int) embd_inp.size(); i++) {
             fprintf(stderr, "%6d -> '%s'\n", embd_inp[i], llama_token_to_str(ctx, embd_inp[i]));
         }

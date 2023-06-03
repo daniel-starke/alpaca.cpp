@@ -6,9 +6,9 @@
 
 #include <string>
 #include <vector>
-#include <random>
-#include <thread>
-#include <unordered_map>
+#include <boost/random/mersenne_twister.hpp>
+#include <boost/thread.hpp>
+#include <boost/unordered_map.hpp>
 
 #if !defined (_WIN32)
 #include <stdio.h>
@@ -30,7 +30,7 @@ struct gpt_params {
     int32_t n_gpu_layers  = 0;   // number of layers to store in VRAM
 
     // sampling parameters
-    std::unordered_map<llama_token, float> logit_bias; // logit bias for specific tokens
+    boost::unordered_map<llama_token, float> logit_bias; // logit bias for specific tokens
     int32_t top_k             = 40;    // <= 0 to use vocab size
     float   top_p             = 0.95f; // 1.0 = disabled
     float   tfs_z             = 1.00f; // 1.0 = disabled
@@ -78,7 +78,7 @@ bool gpt_params_parse(int argc, char ** argv, gpt_params & params);
 
 void gpt_print_usage(int argc, char ** argv, const gpt_params & params);
 
-std::string gpt_random_prompt(std::mt19937 & rng);
+std::string gpt_random_prompt(boost::random::mt19937 & rng);
 
 //
 // Vocab utils
